@@ -5,18 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function HomePage() {
-    const [kmlFile, setKmlFile] = useState(null);
-    const [images, setImages] = useState([]);
-    const [resultCzml, setResultCzml] = useState(null);
+  const [kmlFile, setKmlFile] = useState<File | null>(null);
+  const [images, setImages] = useState<File[]>([]);
+  const [resultCzml, setResultCzml] = useState<string | null>(null);
 
-    const handleKmlChange = (e) => setKmlFile(e.target.files[0]);
-    const handleImageChange = (e) => setImages(Array.from(e.target.files));
-
-    const handleSubmit = async (e) => {
+    const handleKmlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+        setKmlFile(e.target.files[0]);
+      }
+    }
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+          setImages(Array.from(e.target.files));
+      }
+    
+    };
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         const formData = new FormData();
-        formData.append('kml', kmlFile);
+        if (kmlFile) formData.append('kml', kmlFile);
         images.forEach((img) => formData.append('images', img));
 
         try {

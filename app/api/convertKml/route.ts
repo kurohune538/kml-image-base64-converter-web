@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { parseStringPromise } from 'xml2js';
-import fs from 'fs';
-import path from 'path';
 import { Buffer } from 'buffer';
 
 interface LatLonBox {
@@ -9,6 +7,44 @@ interface LatLonBox {
     south: number;
     east: number;
     west: number;
+}
+
+interface CZMLMetadata {
+    id: string;
+    name: string;
+    version: string;
+}
+
+
+interface CZMLOverlayEntity {
+    id: string;
+    name: string;
+    availability: string;
+    rectangle: {
+        coordinates: {
+            wsenDegrees: number[];
+        };
+        material: {
+            image: {
+                image: string;
+                repeat: number[];
+            };
+        };
+    };
+}
+interface GroundOverlay {
+    name?: [{ _: string }];
+    LatLonBox: [{
+        north: [string];
+        south: [string];
+        east: [string];
+        west: [string];
+    }];
+    Icon?: [{
+        href: [string];
+    }];
+    TimeStamp?: [{ when: string }];
+    TimeSpan?: [{ begin?: string; end?: string }];
 }
 
 // ISO 8601形式を整える関数
@@ -22,7 +58,7 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
     const kmlData = await parseStringPromise(kmlContent);
     console.log("KML parsed successfully.");
 
-    const czml = [{
+    const czml: Array<CZMLMetadata | CZMLOverlayEntity> = [{
         id: "document",
         name: "KML to CZML Conversion with Image Overlay",
         version: "1.0"
@@ -33,7 +69,7 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
     console.log(`Found ${groundOverlays.length} GroundOverlay elements.`);
 
     // 各GroundOverlayの時間情報を収集
-    const timeIntervals = groundOverlays.map((overlay: any) => {
+    const timeIntervals = groundOverlays.map((overlay: GroundOverlay) => {
         const timeStamp = overlay.TimeStamp && overlay.TimeStamp[0]?.when[0];
         const timeSpanBegin = overlay.TimeSpan && overlay.TimeSpan[0]?.begin;
         console.log("timestamp: ",timeStamp);
