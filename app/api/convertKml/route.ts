@@ -15,7 +15,6 @@ interface CZMLMetadata {
     version: string;
 }
 
-
 interface CZMLOverlayEntity {
     id: string;
     name: string;
@@ -32,6 +31,7 @@ interface CZMLOverlayEntity {
         };
     };
 }
+
 interface GroundOverlay {
     name?: [{ _: string }];
     LatLonBox: [{
@@ -47,12 +47,33 @@ interface GroundOverlay {
     TimeSpan?: [{ begin?: string; end?: string }];
 }
 
-// ISO 8601形式を整える関数
 function formatIso8601(dateString: string): string {
     return dateString.includes("T") ? dateString : dateString.replace(/(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})/, "$1T$2Z");
 }
 
-// KMLファイルをCZMLに変換する関数
+function findGroundOverlays(kmlData: any): any[] {
+    // Document形式のKMLを確認
+    if (kmlData.kml?.Document?.[0]?.GroundOverlay) {
+        console.log("Found Document-style KML structure");
+        return kmlData.kml.Document[0].GroundOverlay;
+    }
+    
+    // Folder形式のKMLを確認
+    if (kmlData.Folder?.GroundOverlay) {
+        console.log("Found Folder-style KML structure");
+        return kmlData.Folder.GroundOverlay;
+    }
+    
+    // Document > Folder形式のKMLを確認
+    if (kmlData.kml?.Document?.[0]?.Folder?.[0]?.GroundOverlay) {
+        console.log("Found Document>Folder-style KML structure");
+        return kmlData.kml.Document[0].Folder[0].GroundOverlay;
+    }
+
+    console.warn("No recognized KML structure found");
+    return [];
+}
+
 async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [key: string]: Buffer }) {
     console.log("Starting KML to CZML conversion...");
     const kmlData = await parseStringPromise(kmlContent);
@@ -65,21 +86,27 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
     }];
 
     let overlayIndex = 1;
-    const groundOverlays = kmlData.kml.Document[0].GroundOverlay || [];
+    
+    // 異なるKML構造に対応した GroundOverlay の取得
+    const groundOverlays = findGroundOverlays(kmlData);
     console.log(`Found ${groundOverlays.length} GroundOverlay elements.`);
+
+    if (groundOverlays.length === 0) {
+        throw new Error('No GroundOverlay elements found in the KML file');
+    }
 
     // 各GroundOverlayの時間情報を収集
     const timeIntervals = groundOverlays.map((overlay: GroundOverlay) => {
+        const timeSpan = overlay.TimeSpan && overlay.TimeSpan[0];
+        const begin = timeSpan?.begin && timeSpan.begin[0];
         const timeStamp = overlay.TimeStamp && overlay.TimeStamp[0]?.when[0];
-        const timeSpanBegin = overlay.TimeSpan && overlay.TimeSpan[0]?.begin;
-        console.log("timestamp: ",timeStamp);
-        return formatIso8601(timeStamp || timeSpanBegin || "2000-01-01T00:00:00Z");
+        return formatIso8601(timeStamp || begin || "2000-01-01T00:00:00Z");
     });
 
-    // 各エンティティのavailabilityを次のエンティティの時間範囲まで設定
+    // 各エンティティの処理
     for (let i = 0; i < groundOverlays.length; i++) {
         const overlay = groundOverlays[i];
-        const name = overlay.name ? overlay.name[0] : `Overlay ${overlayIndex}`;
+        const name = overlay.name ? overlay.name[0]._ || overlay.name[0] : `Overlay ${overlayIndex}`;
         console.log(`Processing GroundOverlay: ${name}`);
 
         const latLonBox: LatLonBox = {
@@ -89,7 +116,7 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
             west: parseFloat(overlay.LatLonBox[0].west[0])
         };
 
-        // アイコン画像のパスを取得し、Base64エンコード
+        // アイコン画像の処理
         let imageData = null;
         if (overlay.Icon && overlay.Icon[0].href) {
             const imageFileName = overlay.Icon[0].href[0];
@@ -98,13 +125,14 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
                 console.log(`Encoding image: ${imageFileName}`);
                 imageData = `data:image/png;base64,${imgBuffer.toString('base64')}`;
             } else {
-                console.error(`Image file ${imageFileName} not found.`);
+                console.warn(`Image file ${imageFileName} not found.`);
             }
         }
 
-        // 各エンティティのavailabilityを次のエンティティの時間範囲まで設定
+        // 時間範囲の設定
+        const timeSpan = overlay.TimeSpan && overlay.TimeSpan[0];
         const begin = timeIntervals[i];
-        const end = timeIntervals[i + 1] || "2100-01-01T00:00:00Z";  // 次の時間がない場合はデフォルトの終了時間
+        const end = timeSpan?.end?.[0] || timeIntervals[i + 1] || "2100-01-01T00:00:00Z";
         const availability = `${begin}/${end}`;
 
         const czmlOverlay = {
@@ -117,7 +145,7 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
                 },
                 material: {
                     image: {
-                        image: imageData || "default_image.png",  // 画像が見つからない場合はデフォルト
+                        image: imageData || "default_image.png",
                         repeat: [1, 1]
                     }
                 }
@@ -131,31 +159,37 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
     return czml;
 }
 
-// API Route
 export async function POST(req: Request) {
     console.log("Received request for KML to CZML conversion.");
-    const formData = await req.formData();
-    console.log("FormData parsed.");
+    try {
+        const formData = await req.formData();
+        console.log("FormData parsed.");
 
-    const kmlFile = formData.get('kml') as File;
-    const images = formData.getAll('images') as File[];
+        const kmlFile = formData.get('kml') as File;
+        const images = formData.getAll('images') as File[];
 
-    // KMLファイル内容の読み込み
-    const kmlContent = await kmlFile.text();
-    console.log("KML file content loaded.");
+        if (!kmlFile) {
+            throw new Error('KML file is required');
+        }
 
-    // 画像の読み込みとBase64エンコード
-    const uploadedImages: { [key: string]: Buffer } = {};
-    for (const imgFile of images) {
-        const arrayBuffer = await imgFile.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        uploadedImages[imgFile.name] = buffer;
-        console.log(`Loaded image: ${imgFile.name}`);
+        const kmlContent = await kmlFile.text();
+        console.log("KML file content loaded.");
+
+        const uploadedImages: { [key: string]: Buffer } = {};
+        for (const imgFile of images) {
+            const arrayBuffer = await imgFile.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            uploadedImages[imgFile.name] = buffer;
+            console.log(`Loaded image: ${imgFile.name}`);
+        }
+
+        const czmlData = await parseKmlToCzmlWithOverlay(kmlContent, uploadedImages);
+        return NextResponse.json(czmlData);
+    } catch (error) {
+        console.error('Error processing request:', error);
+        return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Failed to process KML conversion' },
+            { status: 500 }
+        );
     }
-
-    // KMLからCZMLへの変換
-    const czmlData = await parseKmlToCzmlWithOverlay(kmlContent, uploadedImages);
-
-    console.log("Returning CZML data as JSON.");
-    return NextResponse.json(czmlData);
 }
