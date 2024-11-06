@@ -147,6 +147,9 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
                     image: {
                         image: imageData || "default_image.png",
                         repeat: [1, 1]
+                    },
+                    color: {
+                        rgba: [255, 255, 255, 255] // デフォルトは不透明
                     }
                 }
             }
