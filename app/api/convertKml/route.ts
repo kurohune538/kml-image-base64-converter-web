@@ -116,18 +116,23 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
             west: parseFloat(overlay.LatLonBox[0].west[0])
         };
 
-        // アイコン画像の処理
-        let imageData = null;
-        if (overlay.Icon && overlay.Icon[0].href) {
-            const imageFileName = overlay.Icon[0].href[0];
-            const imgBuffer = uploadedImages[imageFileName];
-            if (imgBuffer) {
-                console.log(`Encoding image: ${imageFileName}`);
-                imageData = `data:image/png;base64,${imgBuffer.toString('base64')}`;
-            } else {
-                console.warn(`Image file ${imageFileName} not found.`);
-            }
-        }
+       // アイコン画像の処理
+       let imageData = null;
+       if (overlay.Icon && overlay.Icon[0].href) {
+           const imageFileNameWithPath = overlay.Icon[0].href[0];
+           const imageFileName = imageFileNameWithPath.split('/').pop(); // Extract the file name from the path
+           const imgBuffer = uploadedImages[imageFileName];
+           if (imgBuffer) {
+               console.log(`Encoding image: ${imageFileName}`);
+               imageData = `data:image/png;base64,${imgBuffer.toString('base64')}`;
+           } else {
+               console.warn(`Image file ${imageFileName} not found. Using default image.`);
+               imageData = "data:image/png;base64,DEFAULT_IMAGE_BASE64"; // Replace with actual base64 of a default image
+           }
+       } else {
+           console.warn(`No image reference found for overlay: ${name}. Using default image.`);
+           imageData = "data:image/png;base64,DEFAULT_IMAGE_BASE64"; // Replace with actual base64 of a default image
+       }
 
         // 時間範囲の設定
         const timeSpan = overlay.TimeSpan && overlay.TimeSpan[0];
