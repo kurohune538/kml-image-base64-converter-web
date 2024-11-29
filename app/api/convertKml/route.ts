@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { parseStringPromise } from 'xml2js';
 import { Buffer } from 'buffer';
+import { formatIso8601 } from "../../../lib/utils";
 
 interface LatLonBox {
     north: number;
@@ -46,12 +47,20 @@ interface GroundOverlay {
     TimeStamp?: [{ when: string }];
     TimeSpan?: [{ begin?: string; end?: string }];
 }
-
-function formatIso8601(dateString: string): string {
-    return dateString.includes("T") ? dateString : dateString.replace(/(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})/, "$1T$2Z");
+interface KMLDocument {
+    kml?: {
+        Document?: Array<{
+            GroundOverlay?: GroundOverlay[];
+            Folder?: Array<{
+                GroundOverlay?: GroundOverlay[];
+            }>;
+        }>;
+    };
+    Folder?: {
+        GroundOverlay?: GroundOverlay[];
+    };
 }
-
-function findGroundOverlays(kmlData: any): any[] {
+function findGroundOverlays(kmlData: KMLDocument): GroundOverlay[] {
     // Document形式のKMLを確認
     if (kmlData.kml?.Document?.[0]?.GroundOverlay) {
         console.log("Found Document-style KML structure");
@@ -106,7 +115,7 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
     // 各エンティティの処理
     for (let i = 0; i < groundOverlays.length; i++) {
         const overlay = groundOverlays[i];
-        const name = overlay.name ? overlay.name[0]._ || overlay.name[0] : `Overlay ${overlayIndex}`;
+        const name = overlay.name ? (typeof overlay.name[0] === 'string' ? overlay.name[0] : overlay.name[0]._) : `Overlay ${overlayIndex}`;
         console.log(`Processing GroundOverlay: ${name}`);
 
         const latLonBox: LatLonBox = {
@@ -121,13 +130,13 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
        if (overlay.Icon && overlay.Icon[0].href) {
            const imageFileNameWithPath = overlay.Icon[0].href[0];
            const imageFileName = imageFileNameWithPath.split('/').pop(); // Extract the file name from the path
-           const imgBuffer = uploadedImages[imageFileName];
-           if (imgBuffer) {
-               console.log(`Encoding image: ${imageFileName}`);
-               imageData = `data:image/png;base64,${imgBuffer.toString('base64')}`;
+           if (imageFileName && uploadedImages[imageFileName]) {
+            const imgBuffer = uploadedImages[imageFileName];
+            console.log(`Encoding image: ${imageFileName}`);
+            imageData = `data:image/png;base64,${imgBuffer.toString('base64')}`;
            } else {
-               console.warn(`Image file ${imageFileName} not found. Using default image.`);
-               imageData = "data:image/png;base64,DEFAULT_IMAGE_BASE64"; // Replace with actual base64 of a default image
+            console.warn(`Image file ${imageFileName} not found. Using default image.`);
+            imageData = "data:image/png;base64,DEFAULT_IMAGE_BASE64"; // Replace with actual base64 of a default image
            }
        } else {
            console.warn(`No image reference found for overlay: ${name}. Using default image.`);
