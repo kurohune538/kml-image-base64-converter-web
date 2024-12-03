@@ -136,7 +136,7 @@ export default function HomePage() {
               e,
               "kmlFile",
               ["application/vnd.google-earth.kml+xml"],
-              "有効なKMLファイルを選択してください。"
+              "Select valid Kml file"
             ),
           },
           { label: "Images", type: "file", accept: "image/*", multiple: true, onChange: (e) => handleFileArrayChange(e, "images")},
@@ -159,7 +159,7 @@ export default function HomePage() {
                 e,
                 "csvFile",
                 ["text/csv"],
-                "有効なCSVファイルを選択してください。" // CSV専用のエラーメッセージ
+                "Select valid CSV file" // CSV専用のエラーメッセージ
               ),
           },
           {
