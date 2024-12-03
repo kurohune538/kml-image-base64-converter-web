@@ -154,7 +154,7 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
             // For the last overlay, keep the end time undefined for an open-ended interval
             end = timeSpan?.end?.[0] || null;
         }
-        const availability = end ? `${begin}/${end}` : `${begin}`;
+        const availability = end ? `${begin}/${end}` : `${begin}/${begin}`;
         const czmlOverlay = {
             id: `overlay_${overlayIndex}`,
             name: name,
