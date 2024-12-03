@@ -146,9 +146,15 @@ async function parseKmlToCzmlWithOverlay(kmlContent: string, uploadedImages: { [
         // 時間範囲の設定
         const timeSpan = overlay.TimeSpan && overlay.TimeSpan[0];
         const begin = timeIntervals[i];
-        const end = timeSpan?.end?.[0] || timeIntervals[i + 1] || "2100-01-01T00:00:00Z";
-        const availability = `${begin}/${end}`;
-
+        let end: string | null = null;
+        if (i < groundOverlays.length - 1) {
+            // Use the next overlay's time as the end time, if available
+            end = timeSpan?.end?.[0] || timeIntervals[i + 1];
+        } else {
+            // For the last overlay, keep the end time undefined for an open-ended interval
+            end = timeSpan?.end?.[0] || null;
+        }
+        const availability = end ? `${begin}/${end}` : `${begin}`;
         const czmlOverlay = {
             id: `overlay_${overlayIndex}`,
             name: name,
