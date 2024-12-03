@@ -36,7 +36,8 @@ export default function HomePage() {
     errorMessage: string
   ) => {
     const file = e.target.files?.[0];
-    if (file && validateFile(file, allowedTypes)) {
+    // if (file && validateFile(file, allowedTypes)) {
+    if (file) {
       handleStateChange(key, file);
     } else {
       alert(errorMessage);
