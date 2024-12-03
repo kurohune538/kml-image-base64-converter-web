@@ -19,9 +19,9 @@ export default function HomePage() {
     setState((prevState) => ({ ...prevState, [key]: value }));
   };
 
-  const validateFile = (file: File, allowedTypes: string[]): boolean => {
-    return allowedTypes.includes(file.type);
-  };
+  // const validateFile = (file: File, allowedTypes: string[]): boolean => {
+  //   return allowedTypes.includes(file.type);
+  // };
 
   // ファイル配列を更新する関数
   const handleFileArrayChange = (e: React.ChangeEvent<HTMLInputElement>, key: keyof typeof state) => {
